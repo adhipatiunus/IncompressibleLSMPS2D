@@ -185,7 +185,7 @@ def LSMPSbUpwind(node_x, node_y, index, R_e, R_s, neighbor_list, fx, fy):
                     
                 M += w_ij * np.matmul(P, P.T)
             """
-            h = 0.001
+            h = 0.0025
             x = np.linspace(node_x[i] - h, node_x[i] + h, 3)
             y = np.linspace(node_y[i] - h, node_y[i] + h, 3)
             x_s, y_s = np.meshgrid(x, y)

@@ -17,15 +17,15 @@ from LSMPS import LSMPSb, LSMPSbUpwind
 from visualize import visualize
 
 xmin = 0
-xmax = 5
+xmax = 0.5
 ymin = 0
-ymax = 5
-xcenter = 2.5
-ycenter = 2.5
-sigma = 0.01
-r_e = 3.1
+ymax = 0.5
+xcenter = 0.25
+ycenter = 0.25
+sigma = 0.0025
+r_e = 2.1
 r_s = 1.3
-RAD = 0.5
+RAD = 0.01
 #%%
 node_x, node_y, normal_x_bound, normal_y_bound, n_boundary, index, diameter = generate_particles_singleres(xmin, xmax, ymin, ymax, sigma, RAD)
 cell_size = r_e * np.max(diameter)
@@ -289,7 +289,7 @@ p = phi + p1 - nu * div
 """
 #%%
 diff_2d = nu * (EtaDxx + EtaDyy)
-while T < 2 * dt:
+while T < 100 * dt:
     # 1, Velocity prediction
     # Calculate predicted velocity
     # Create LHS matrix
@@ -405,3 +405,4 @@ np.savez('u_corr',u_corr)
 np.savez('v_corr', v_corr)
 np.savez('u_pred',u_corr)
 np.savez('v_pred', v_corr)
+np.savez('p',p)
