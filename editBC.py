@@ -342,10 +342,10 @@ while T < 100 * dt:
     print(' dt = ', dt)
     print(' T = ', T)
     
-    visualize(node_x, node_y, p1, diameter, 'initial_pressure.png')
-    visualize(node_x, node_y, np.sqrt(u_corr**2+v_corr**2), diameter, 'initial_pressure.png')
-    visualize(node_x, node_y, u_corr, diameter, 'initial_pressure.png')
-    visualize(node_x, node_y, v_corr, diameter, 'initial_pressure.png')
+    #visualize(node_x, node_y, p1, diameter, 'initial_pressure.png')
+    #visualize(node_x, node_y, np.sqrt(u_corr**2+v_corr**2), diameter, 'initial_pressure.png')
+    #visualize(node_x, node_y, u_corr, diameter, 'initial_pressure.png')
+    #visualize(node_x, node_y, v_corr, diameter, 'initial_pressure.png')
 
     T += dt
 
