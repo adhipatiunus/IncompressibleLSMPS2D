@@ -4,54 +4,67 @@
 Created on Tue Jul 26 16:40:12 2022
 @author: adhipatiunus
 """
-# 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
+# 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
 import numpy as np
-import scipy.sparse as sc
-import scipy.sparse.linalg as scl
+from scipy import sparse
+from scipy.sparse import linalg
 import matplotlib.pyplot as plt
 
 from generate_particle import generate_particles, generate_particles_singleres
 from neighbor_search import neighbor_search_cell_list
+from neighbor_search_verlet import multiple_verlet
 from LSMPS import LSMPSb, LSMPSbUpwind
 from visualize import visualize
 
+RAD = 0.5
+xcenter = 5 * (2 * RAD)
+ycenter = 7.5 * (2 * RAD)
 xmin = 0
-xmax = 2
+xmax = xcenter + 10 * (2 * RAD)
 ymin = 0
-ymax = 2
-xcenter = 1
-ycenter = 1
-sigma = 0.01
+ymax = ycenter + 7.5 * (2 * RAD)
+sigma = 1
 r_e = 2.1
 r_s = 1.3
-RAD = 0.2
 # %%
-node_x, node_y, normal_x_bound, normal_y_bound, n_boundary, index, diameter = generate_particles_singleres(xmin, xmax, ymin, ymax, sigma, RAD)
+node_x, node_y, node_z, normal_x_bound, normal_y_bound, n_boundary, index, diameter = generate_particles(xmin, xmax, xcenter, ymin, ymax, ycenter, sigma, RAD)
+n_particle = len(node_x)
 cell_size = r_e * np.max(diameter)
-neighbor = neighbor_search_cell_list(node_x, node_y, index, cell_size, ymax, ymin, xmax, xmin)
-R_e = r_e * sigma
-R_s = r_s * sigma
 # %%
-alphaC = 0.01
-nu = 0.1
+# Neighbor search
+n_bound = n_boundary[3]
+h = np.ones_like(diameter) * np.max(diameter)
+rc = np.concatenate((h[:n_bound] * r_e, h[n_bound:] * r_e))
+nodes_3d = np.concatenate((node_x.reshape(-1,1), node_y.reshape(-1,1), node_z.reshape(-1,1)), axis = 1)
+neighbor, n_neighbor = multiple_verlet(nodes_3d, n_bound, rc)
+#%%
+# Create neighbor matrix
+max_neighbor = np.max([len(neighbor[i]) for i in range(n_particle)])
+neighbor_matrix = np.ones((n_particle, max_neighbor), dtype=np.int32) * -1
+for i in range(n_particle):
+    for j in range(n_neighbor[i]):
+        neighbor_matrix[i,j] = neighbor[i][j]
+        
+Rmax = np.zeros(n_particle)
+
+for i in range(n_particle):
+    neighbor_matrix[i] = np.sort(neighbor_matrix[i])[::-1]
+    ni = np.array(neighbor[i])
+    Rmax[i] = np.array([np.max(diameter[ni])])
+    
+R_s = r_s * diameter
+R = diameter / 2
+#%%
+alphaC = 0.1
+nu = 0.01
 eta = 1e-4
 etaP = 1e-4
-
 n_particle = len(node_x)
-
-p_type = np.array(['inner'] * n_particle)
-u_type = np.array(['inner'] * n_particle)
-v_type = np.array(['inner'] * n_particle)
-w_type = np.array(['inner'] * n_particle)
 
 # Initial Condition
 u = np.zeros(n_particle)
 v = np.zeros(n_particle)
 w = np.zeros(n_particle)
-dudn = np.zeros(n_particle)
-dvdn = np.zeros(n_particle)
-dwdn = np.zeros(n_particle)
-
 p = np.zeros(n_particle)
 
 # Boundary Condition
@@ -75,10 +88,8 @@ u[idx_begin:idx_end] = 1.0
 T = 0
 dt = np.min(alphaC * diameter / np.sqrt(u**2+v**2))
 
-EtaDx, EtaDy, EtaDxx, EtaDxy, EtaDyy = LSMPSb(
-    node_x, node_y, index, R_e, R_s, neighbor)
-EtaDxU, EtaDyU, EtaDxxU, EtaDxyU, EtaDyyU = LSMPSbUpwind(
-    node_x, node_y, index, R_e, R_s, neighbor, u, v)
+EtaDx, EtaDy, EtaDxx, EtaDxy, EtaDyy = LSMPSb(node_x, node_y, index, Rmax, R, r_e, R_s, neighbor_matrix, n_neighbor)
+EtaDxU, EtaDyU, EtaDxxU, EtaDxyU, EtaDyyU = LSMPSbUpwind(node_x, node_y, index, Rmax, R, r_e, R_s, neighbor_matrix, n_neighbor, u, v)
 # %%
 # Calculate Darcy drag
 I_2D = np.eye(n_particle)
@@ -103,6 +114,7 @@ LHS[idx_begin:idx_end] = (EtaDx[idx_begin:idx_end].T * normal_x_bound[idx_begin:
 idx_begin = idx_end
 idx_end = n_particle
 LHS[idx_begin:idx_end] = EtaDxx[idx_begin:idx_end] + EtaDyy[idx_begin:idx_end]
+LHS = sparse.csr_matrix(LHS)
 
 # Create RHS Vector
 RHS = np.zeros(n_particle)
@@ -117,7 +129,7 @@ idx_end = n_particle
 conv_2d = (EtaDxU.T * u).T + (EtaDyU.T * v).T
 RHS[idx_begin:idx_end] = - EtaDx[idx_begin:idx_end] @ (conv_2d @ u) \
                             - EtaDy[idx_begin:idx_end] @ (conv_2d @ v)
-p0 = np.linalg.solve(LHS, RHS)
+p0 = linalg.bicgstab(LHS, RHS, x0 = p, tol = 1e-7)
 # %%
 # Calculate predicted velocity
 # Create LHS Matrix
@@ -136,6 +148,8 @@ diff_2d = nu * (EtaDxx + EtaDyy)
 LHS[idx_begin:idx_end, idx_begin:idx_end] = np.eye(idx_end - idx_begin) / dt
 LHS[idx_begin:idx_end] += conv_2d[idx_begin:idx_end] - \
     diff_2d[idx_begin:idx_end] + Ddrag_2d[idx_begin:idx_end]
+LHS = sparse.csr_matrix(LHS)
+
 # Create RHS vector
 # Solve for u
 RHS = np.zeros(n_particle)
@@ -149,7 +163,7 @@ idx_begin = idx_end
 idx_end = n_particle
 RHS[idx_begin:idx_end] = u[idx_begin:idx_end] / dt \
     - EtaDx[idx_begin:idx_end] @ p0
-u_pred = np.linalg.solve(LHS, RHS)
+u_pred = linalg.bicgstab(LHS, RHS, x0 = u, tol = 1e-7)
 # Solve for v
 RHS = np.zeros(n_particle)
 idx_begin = 0
@@ -162,7 +176,7 @@ idx_begin = idx_end
 idx_end = n_particle
 RHS[idx_begin:idx_end] = v[idx_begin:idx_end] / dt \
     - EtaDy[idx_begin:idx_end] @ p0
-v_pred = np.linalg.solve(LHS, RHS)
+v_pred = linalg.bicgstab(LHS, RHS, x0 = v, tol = 1e-7)
 
 # %%
 conv_2d = (EtaDxU.T * u_pred).T + (EtaDyU.T * v_pred).T
@@ -177,6 +191,7 @@ LHS[idx_begin:idx_end] = (EtaDx[idx_begin:idx_end].T * normal_x_bound[idx_begin:
 idx_begin = idx_end
 idx_end = n_particle
 LHS[idx_begin:idx_end] = EtaDxx[idx_begin:idx_end] + EtaDyy[idx_begin:idx_end]
+LHS = sparse.csr_matrix(LHS)
 
 # Create RHS Vector
 RHS = np.zeros(n_particle)
@@ -194,7 +209,7 @@ RHS[idx_begin:idx_end] = (EtaDxx[idx_begin:idx_end] + EtaDyy[idx_begin:idx_end])
     + 1 / dt * (EtaDx[idx_begin:idx_end] @ u_pred + EtaDy[idx_begin:idx_end] @ v_pred) \
     + EtaDx[idx_begin:idx_end] @ darcy_u \
     + EtaDy[idx_begin:idx_end] @ darcy_v
-p1 = np.linalg.solve(LHS, RHS)
+p1 = linalg.bicgstab(LHS, RHS, x0 = p0, tol = 1e-7)
 # %%
 # Solve corrected velocity
 u_corr = u_pred.copy()
@@ -225,8 +240,7 @@ while T < 100 * dt:
     # 1, Velocity prediction
     # Calculate predicted velocity
     # Create LHS matrix
-    EtaDxU, EtaDyU, EtaDxxU, EtaDxyU, EtaDyyU = LSMPSbUpwind(
-        node_x, node_y, index, R_e, R_s, neighbor, u1, v1)
+    EtaDxU, EtaDyU, EtaDxxU, EtaDxyU, EtaDyyU = LSMPSbUpwind(node_x, node_y, index, Rmax, R, r_e, R_s, neighbor_matrix, n_neighbor, u1, v1)
     conv_2d = (EtaDxU.T * u1).T + (EtaDyU.T * v1).T
     LHS = np.zeros((n_particle, n_particle))
     idx_begin = 0
@@ -243,6 +257,7 @@ while T < 100 * dt:
     LHS[idx_begin:idx_end] += conv_2d[idx_begin:idx_end] \
         - diff_2d[idx_begin:idx_end] \
         + Ddrag_2d[idx_begin:idx_end]
+    LHS = sparse.csr_matrix(LHS)
     # Create RHS vector
     # Solve for u
     RHS = np.zeros(n_particle)
@@ -256,7 +271,7 @@ while T < 100 * dt:
     idx_end = n_particle
     RHS[idx_begin:idx_end] = (4 * u1[idx_begin:idx_end] - u0[idx_begin:idx_end]) / (2 * dt) \
         - EtaDx[idx_begin:idx_end] @ p1
-    u_pred = np.linalg.solve(LHS, RHS)
+    u_pred = linalg.bicgstab(LHS, RHS, x0 = u1, tol = 1e-7)
     # Solve for v
     RHS = np.zeros(n_particle)
     idx_begin = 0
@@ -269,7 +284,7 @@ while T < 100 * dt:
     idx_end = n_particle
     RHS[idx_begin:idx_end] = (4 * v1[idx_begin:idx_end] - v0[idx_begin:idx_end]) / (2 * dt) \
         - EtaDy[idx_begin:idx_end] @ p1
-    v_pred = np.linalg.solve(LHS, RHS)
+    v_pred = linalg.bicgstab(LHS, RHS, x0 = v1, tol = 1e-7)
 
     # 2. Pressure correction
     # Solve Poisson equation
@@ -286,6 +301,7 @@ while T < 100 * dt:
     idx_end = n_particle
     LHS[idx_begin:idx_end] = EtaDxx[idx_begin:idx_end] + \
                                 EtaDyy[idx_begin:idx_end]
+    LHS = sparse.csr_matrix(LHS)
     # Create RHS vector for phi
     RHS = np.zeros(n_particle)
     idx_begin = 0
@@ -301,7 +317,7 @@ while T < 100 * dt:
     RHS[idx_begin:idx_end] = 3 / (2 * dt) * (EtaDx[idx_begin:idx_end] @ u_pred + EtaDy[idx_begin:idx_end] @ v_pred) \
                             + EtaDx[idx_begin:idx_end] @ darcy_u \
                             + EtaDy[idx_begin:idx_end] @ darcy_v
-    phi = np.linalg.solve(LHS, RHS)
+    phi = linalg.bicgstab(LHS, RHS, tol = 1e-7)
     div = EtaDx @ u_pred + EtaDy @ v_pred
     p = p1.copy()
     idx_begin = n_boundary[0]
@@ -350,16 +366,21 @@ while T < 100 * dt:
     T += dt
 
 # %%
-visualize(node_x, node_y, p1, diameter, 'initial_pressure.png')
-visualize(node_x, node_y, np.sqrt(u_corr**2+v_corr**2), diameter, 'initial_pressure.png')
-visualize(node_x, node_y, u_corr, diameter, 'initial_pressure.png')
-visualize(node_x, node_y, v_corr, diameter, 'initial_pressure.png')
+#visualize(node_x, node_y, p1, diameter, 'initial_pressure.png')
+#visualize(node_x, node_y, np.sqrt(u_corr**2+v_corr**2), diameter, 'initial_pressure.png')
+#visualize(node_x, node_y, u_corr, diameter, 'initial_pressure.png')
+#visualize(node_x, node_y, v_corr, diameter, 'initial_pressure.png')
 #plt.scatter(node_x, node_y, c=p0, cmap="jet", linewidth=0)
 # %%
+CD = np.array(CD)
+CL = np.array(CL)
+ts = np.array(ts)
 np.savez('x', node_x)
 np.savez('y', node_y)
-np.savez('u_corr', u_corr)
-np.savez('v_corr', v_corr)
-np.savez('u_pred', u_corr)
-np.savez('v_pred', v_corr)
+np.savez('u1', u1)
+np.savez('v1', v1)
+np.savez('u0', u0)
+np.savez('v0', v0)
 np.savez('p', p)
+np.savez('CL', CL)
+np.savez('CD', CD)
