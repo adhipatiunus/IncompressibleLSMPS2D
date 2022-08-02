@@ -21,7 +21,7 @@ def generate_particles_singleres(xmin, xmax, ymin, ymax, sigma, R):
     # 1. East
     y_east = np.linspace(ymin, ymax, ny)
     x_east = np.ones_like(y_east) * xmax
-    normal_x_east = np.ones_like(y_east) * -1.0
+    normal_x_east = np.ones_like(y_east) * 1.0
     normal_y_east = np.zeros_like(y_east)
     
     n_east = len(x_east)
@@ -29,7 +29,7 @@ def generate_particles_singleres(xmin, xmax, ymin, ymax, sigma, R):
     # 2. West
     y_west = np.linspace(ymin, ymax, ny)
     x_west = np.ones_like(y_west) * xmin
-    normal_x_west = np.ones_like(y_west) * 1.0
+    normal_x_west = np.ones_like(y_west) * -1.0
     normal_y_west = np.zeros_like(y_west)
     
     n_west = n_east + len(x_west)
@@ -38,7 +38,7 @@ def generate_particles_singleres(xmin, xmax, ymin, ymax, sigma, R):
     x_north = np.linspace(xmin+h, xmax-h, nx-2)
     y_north = np.ones_like(x_north) * ymax
     normal_x_north = np.zeros_like(x_north)
-    normal_y_north = np.ones_like(x_north) * -1.0
+    normal_y_north = np.ones_like(x_north) * 1.0
     
     n_north = n_west + len(x_north)
     
@@ -46,7 +46,7 @@ def generate_particles_singleres(xmin, xmax, ymin, ymax, sigma, R):
     x_south = np.linspace(xmin+h, xmax-h, nx-2)
     y_south = np.ones_like(x_south) * ymin
     normal_x_south = np.zeros_like(x_south)
-    normal_y_south = np.ones_like(x_south) * 1.0
+    normal_y_south = np.ones_like(x_south) * -1.0
 
     normal_x_bound = np.concatenate((normal_x_east, normal_x_west, normal_x_north, normal_x_south))
     normal_y_bound = np.concatenate((normal_y_east, normal_y_west, normal_y_north, normal_y_south))
@@ -84,22 +84,19 @@ def generate_particles_singleres(xmin, xmax, ymin, ymax, sigma, R):
     
     return node_x, node_y, normal_x_bound, normal_y_bound, n_boundary, index, diameter
 
-def generate_particles(xmin, xmax, ymin, ymax, sigma, R):
+def generate_particles(xmin, xmax, x_center, ymin, ymax, y_center, sigma, R):
     h1 = 1
     h2 = 1/2
     h3 = 1/4
     h4 = 1/8
-    h5 = 1/16
-    h6 = 1/32
-    h7 = 1/64
+    h5 = 0.05
+    h6 = 0.025
+    h7 = 0.0125
 
-    h = h2 * sigma
+    h = h5 * sigma
 
     lx = xmax - xmin
     ly = ymax - ymin
-
-    x_center = (xmax + xmin) / 2
-    y_center = (ymax + ymin) / 2
 
     nx = int(lx / h) + 1
     ny = int(ly / h) + 1
@@ -109,20 +106,23 @@ def generate_particles(xmin, xmax, ymin, ymax, sigma, R):
     # 1. East
     y_east = np.linspace(ymin, ymax, ny)
     x_east = np.ones_like(y_east) * xmax
-    normal_x_east = np.ones_like(y_east) * 1.0
+    normal_x_east = np.ones_like(y_east) * -1.0
     normal_y_east = np.zeros_like(y_east)
+    n_east = len(x_east)
     
     # 2. West
     y_west = np.linspace(ymin, ymax, ny)
     x_west = np.ones_like(y_west) * xmin
-    normal_x_west = np.ones_like(y_west) * -1.0
+    normal_x_west = np.ones_like(y_west) * 1.0
     normal_y_west = np.zeros_like(y_west)
+    n_west = n_east + len(x_west)
 
     # 3. North
     x_north = np.linspace(xmin, xmax, nx)
     y_north = np.ones_like(x_north) * ymax
     normal_x_north = np.ones_like(x_north) * -1.0
     normal_y_north = np.zeros_like(x_north)
+    n_north = n_west + len(x_north)
     
     # 4. South
     x_south = np.linspace(xmin, xmax, nx)
@@ -135,6 +135,7 @@ def generate_particles(xmin, xmax, ymin, ymax, sigma, R):
 
     node_x = np.concatenate((x_east, x_west, x_north, x_south))
     node_y = np.concatenate((y_east, y_west, y_north, y_south))
+    n_south = n_north + len(x_south)
 
     n_bound = len(node_x)
     diameter = h * np.ones(n_bound)
@@ -143,7 +144,7 @@ def generate_particles(xmin, xmax, ymin, ymax, sigma, R):
     # First layer
     h = h5 * sigma
     R_in = 0
-    R_out = R - 2 * h
+    R_out = R - 4 * h
     sphere_x, sphere_y, sp = generate_node_spherical(x_center, y_center, R_in, R_out, h)
 
     node_x = np.concatenate((node_x, sphere_x))
@@ -184,7 +185,7 @@ def generate_particles(xmin, xmax, ymin, ymax, sigma, R):
     
     # Second layer
     h = h6 * sigma
-    n_layer = 3
+    n_layer = 10
     R_in = R_out
     R_out = R + n_layer * h
     sphere_x, sphere_y, sp = generate_node_spherical(x_center, y_center, R_in, R_out, h)
@@ -196,8 +197,8 @@ def generate_particles(xmin, xmax, ymin, ymax, sigma, R):
     # Intermediate
     # Inner boundary: circle
     # Outer boundary: rectangle
-    h = h5 * sigma
-    n_layer = 3
+    h = h6 * sigma
+    n_layer = 10
     X_MIN = xmin + h
     X_MAX = xmax - h
     Y_MIN = ymin + h
@@ -217,7 +218,7 @@ def generate_particles(xmin, xmax, ymin, ymax, sigma, R):
     delete_inner = (rec_x - x_center)**2 + (rec_y - y_center)**2 <= R_out
 
     X_MIN = (x_center - R_out) - n_layer * h
-    X_MAX = (x_center + R_out) + n_layer * h
+    X_MAX = (x_center + R_out) + 5 * n_layer * h
     Y_MIN = (y_center - R_out) - n_layer * h
     Y_MAX = (y_center + R_out) + n_layer * h
 
@@ -234,7 +235,7 @@ def generate_particles(xmin, xmax, ymin, ymax, sigma, R):
     
     # Box of nodes
     # First box
-    h = h4 * sigma
+    h = h5 * sigma
     n_layer = 3
     x_bound_min = X_MIN
     x_bound_max = X_MAX
@@ -253,7 +254,7 @@ def generate_particles(xmin, xmax, ymin, ymax, sigma, R):
     y_bound_max = y_bound_max + n_layer * h
     
     # Second box
-    h = h3 * sigma
+    h = h5 * sigma
     n_layer = 3
     rec_x, rec_y, sp = generate_node_box(xmin, xmax, ymin, ymax, x_bound_min, x_bound_max, y_bound_min, y_bound_max, n_layer, h)
 
@@ -267,7 +268,7 @@ def generate_particles(xmin, xmax, ymin, ymax, sigma, R):
     y_bound_max = y_bound_max + n_layer * h
     
     # Third box
-    h = h2 * sigma
+    h = h5 * sigma
 
     nx = int(((xmax - h) - (xmin + h)) / h) + 1
     ny = int(((ymax - h) - (ymin + h)) / h) + 1
@@ -296,8 +297,11 @@ def generate_particles(xmin, xmax, ymin, ymax, sigma, R):
 
     boundary = np.full(N, False)
     boundary[:n_bound] = True
+    node_z = np.zeros_like(node_x)
     
-    return node_x, node_y, normal_x_bound, normal_y_bound, index, diameter
+    n_boundary = np.array([n_east, n_west, n_north, n_south])
+    
+    return node_x, node_y, node_z, normal_x_bound, normal_y_bound, n_boundary, index, diameter
 
 def generate_node_spherical(x_center, y_center, R_in, R_out, h):
     x_min = x_center - 2 * R_out
