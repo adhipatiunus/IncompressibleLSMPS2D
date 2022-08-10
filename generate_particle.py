@@ -75,6 +75,7 @@ def generate_particles_singleres(xmin, xmax, ymin, ymax, sigma, R):
     
     node_x = np.concatenate((node_x, x))
     node_y = np.concatenate((node_y, y))
+    node_z = np.zeros_like(node_x)
     
     diameter = h * np.ones_like(node_x)
     
@@ -82,7 +83,7 @@ def generate_particles_singleres(xmin, xmax, ymin, ymax, sigma, R):
     
     index = np.arange(N)
     
-    return node_x, node_y, normal_x_bound, normal_y_bound, n_boundary, index, diameter
+    return node_x, node_y, node_z, normal_x_bound, normal_y_bound, n_boundary, index, diameter
 
 def generate_particles(xmin, xmax, x_center, ymin, ymax, y_center, sigma, R):
     h1 = 1
@@ -90,10 +91,11 @@ def generate_particles(xmin, xmax, x_center, ymin, ymax, y_center, sigma, R):
     h3 = 1/4
     h4 = 1/8
     h5 = 0.05
-    h6 = 0.025
-    h7 = 0.0125
+    h6 = h5 / 1.25
+    h7 = h5 / 1.5
+    h8 = h5 / 2.0
 
-    h = h5 * sigma
+    h = h7 * sigma
 
     lx = xmax - xmin
     ly = ymax - ymin
@@ -118,14 +120,14 @@ def generate_particles(xmin, xmax, x_center, ymin, ymax, y_center, sigma, R):
     n_west = n_east + len(x_west)
 
     # 3. North
-    x_north = np.linspace(xmin, xmax, nx)
+    x_north = np.linspace(xmin + h, xmax - h, nx - 2)
     y_north = np.ones_like(x_north) * ymax
     normal_x_north = np.ones_like(x_north) * -1.0
     normal_y_north = np.zeros_like(x_north)
     n_north = n_west + len(x_north)
     
     # 4. South
-    x_south = np.linspace(xmin, xmax, nx)
+    x_south = np.linspace(xmin + h, xmax - h, nx - 2)
     y_south = np.ones_like(x_south) * ymin
     normal_x_south = np.ones_like(x_south) * 1.0
     normal_y_south = np.zeros_like(x_south)
@@ -144,7 +146,7 @@ def generate_particles(xmin, xmax, x_center, ymin, ymax, y_center, sigma, R):
     # First layer
     h = h5 * sigma
     R_in = 0
-    R_out = R - 4 * h
+    R_out = R - 3 * h
     sphere_x, sphere_y, sp = generate_node_spherical(x_center, y_center, R_in, R_out, h)
 
     node_x = np.concatenate((node_x, sphere_x))
@@ -185,7 +187,7 @@ def generate_particles(xmin, xmax, x_center, ymin, ymax, y_center, sigma, R):
     
     # Second layer
     h = h6 * sigma
-    n_layer = 10
+    n_layer = 3
     R_in = R_out
     R_out = R + n_layer * h
     sphere_x, sphere_y, sp = generate_node_spherical(x_center, y_center, R_in, R_out, h)
@@ -218,7 +220,7 @@ def generate_particles(xmin, xmax, x_center, ymin, ymax, y_center, sigma, R):
     delete_inner = (rec_x - x_center)**2 + (rec_y - y_center)**2 <= R_out
 
     X_MIN = (x_center - R_out) - n_layer * h
-    X_MAX = (x_center + R_out) + 5 * n_layer * h
+    X_MAX = (x_center + R_out) + 3 * n_layer * h
     Y_MIN = (y_center - R_out) - n_layer * h
     Y_MAX = (y_center + R_out) + n_layer * h
 
@@ -236,57 +238,111 @@ def generate_particles(xmin, xmax, x_center, ymin, ymax, y_center, sigma, R):
     # Box of nodes
     # First box
     h = h5 * sigma
-    n_layer = 3
-    x_bound_min = X_MIN
-    x_bound_max = X_MAX
-    y_bound_min = Y_MIN
-    y_bound_max = Y_MAX
+    n_layer = 2
+    x_bound_min = xmin + n_layer * h
+    x_bound_max = xmax - n_layer * h
+    y_bound_min = ymin + n_layer * h
+    y_bound_max = ymax - n_layer * h
 
-    rec_x, rec_y, sp = generate_node_box(xmin, xmax, ymin, ymax, x_bound_min, x_bound_max, y_bound_min, y_bound_max, n_layer, h)
-
-    node_x = np.concatenate((node_x, rec_x))
-    node_y = np.concatenate((node_y, rec_y))
-    diameter = np.concatenate((diameter, sp))
-
-    x_bound_min = x_bound_min - n_layer * h
-    x_bound_max = x_bound_max + n_layer * h
-    y_bound_min = y_bound_min - n_layer * h
-    y_bound_max = y_bound_max + n_layer * h
+    lx = x_bound_max - x_bound_min
+    ly = y_bound_max - y_bound_min
     
-    # Second box
-    h = h5 * sigma
-    n_layer = 3
-    rec_x, rec_y, sp = generate_node_box(xmin, xmax, ymin, ymax, x_bound_min, x_bound_max, y_bound_min, y_bound_max, n_layer, h)
-
-    node_x = np.concatenate((node_x, rec_x))
-    node_y = np.concatenate((node_y, rec_y))
-    diameter = np.concatenate((diameter, sp))
-
-    x_bound_min = x_bound_min - n_layer * h
-    x_bound_max = x_bound_max + n_layer * h
-    y_bound_min = y_bound_min - n_layer * h
-    y_bound_max = y_bound_max + n_layer * h
+    nx = int(lx / h) + 1
+    ny = int(ly / h) + 1
     
-    # Third box
-    h = h5 * sigma
-
-    nx = int(((xmax - h) - (xmin + h)) / h) + 1
-    ny = int(((ymax - h) - (ymin + h)) / h) + 1
+    x = np.linspace(x_bound_min, x_bound_max, nx)
+    y = np.linspace(y_bound_min, y_bound_max, ny)
     
-    x = np.linspace(xmin + h, xmax - h, nx)
-    y = np.linspace(ymin + h, ymax - h, ny)
-
-    x_3d, y_3d = np.meshgrid(x, y)
-
-    rec_x = x_3d.flatten()
-    rec_y = y_3d.flatten()
-
-    delete_inner = (rec_x >= x_bound_min) * (rec_x <= x_bound_max) \
-                    * (rec_y >= y_bound_min) * (rec_y <= y_bound_max)
-
+    x_2d, y_2d = np.meshgrid(x, y)
+    
+    rec_x = x_2d.flatten()
+    rec_y = y_2d.flatten()
+    
+    delete_inner = (rec_x >= X_MIN) * (rec_x <= X_MAX) \
+                    * (rec_y >= Y_MIN) * (rec_y <= Y_MAX)
+                    
     rec_x = rec_x[~delete_inner]
     rec_y = rec_y[~delete_inner]
-    sp = h * np.ones_like(rec_x)
+    
+    sp = np.ones_like(rec_x) * h
+
+    node_x = np.concatenate((node_x, rec_x))
+    node_y = np.concatenate((node_y, rec_y))
+    diameter = np.concatenate((diameter, sp))
+
+    X_MIN = x_bound_min
+    X_MAX = x_bound_max
+    Y_MIN = y_bound_min
+    Y_MAX = y_bound_max
+    
+    # Second box
+    h = h6 * sigma
+    n_layer = 1
+    x_bound_min = xmin + n_layer * h
+    x_bound_max = xmax - n_layer * h
+    y_bound_min = ymin + n_layer * h
+    y_bound_max = ymax - n_layer * h
+
+    lx = x_bound_max - x_bound_min
+    ly = y_bound_max - y_bound_min
+    
+    nx = int(lx / h) + 1
+    ny = int(ly / h) + 1
+    
+    x = np.linspace(x_bound_min, x_bound_max, nx)
+    y = np.linspace(y_bound_min, y_bound_max, ny)
+    
+    x_2d, y_2d = np.meshgrid(x, y)
+    
+    rec_x = x_2d.flatten()
+    rec_y = y_2d.flatten()
+    
+    delete_inner = (rec_x >= X_MIN) * (rec_x <= X_MAX) \
+                    * (rec_y >= Y_MIN) * (rec_y <= Y_MAX)
+                    
+    rec_x = rec_x[~delete_inner]
+    rec_y = rec_y[~delete_inner]
+    
+    sp = np.ones_like(rec_x) * h
+
+    node_x = np.concatenate((node_x, rec_x))
+    node_y = np.concatenate((node_y, rec_y))
+    diameter = np.concatenate((diameter, sp))
+    
+    X_MIN = x_bound_min
+    X_MAX = x_bound_max
+    Y_MIN = y_bound_min
+    Y_MAX = y_bound_max
+    
+    # Third box
+    h = h7 * sigma
+    n_layer = 1
+    x_bound_min = xmin + h
+    x_bound_max = xmax - h
+    y_bound_min = ymin + h
+    y_bound_max = ymax - h
+
+    lx = x_bound_max - x_bound_min
+    ly = y_bound_max - y_bound_min
+    
+    nx = int(lx / h) + 1
+    ny = int(ly / h) + 1
+    
+    x = np.linspace(x_bound_min, x_bound_max, nx)
+    y = np.linspace(y_bound_min, y_bound_max, ny)
+    
+    x_2d, y_2d = np.meshgrid(x, y)
+    
+    rec_x = x_2d.flatten()
+    rec_y = y_2d.flatten()
+    
+    delete_inner = (rec_x >= X_MIN) * (rec_x <= X_MAX) \
+                    * (rec_y >= Y_MIN) * (rec_y <= Y_MAX)
+                    
+    rec_x = rec_x[~delete_inner]
+    rec_y = rec_y[~delete_inner]
+    
+    sp = np.ones_like(rec_x) * h
 
     node_x = np.concatenate((node_x, rec_x))
     node_y = np.concatenate((node_y, rec_y))
@@ -365,4 +421,3 @@ def generate_node_box(x_min, x_max, y_min, y_max, x_bound_min, x_bound_max, y_bo
     sp = h * np.ones_like(node_x)
     
     return node_x, node_y, sp
-
