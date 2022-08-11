@@ -138,23 +138,23 @@ def LSMPSbUpwind(node_x, node_y, index, Rmax, R, r_e, R_s, neighbor_matrix, n_ne
             
             r_ij = np.sqrt((x_ij)**2 + (y_ij)**2)
             
-            if r_ij == 0:
-                n_ij = np.array([0,0])
+            if r_ij <= 1e-12:
+                n_ij = np.array([0.0,0.0])
             else:
                 n_ij = np.array([x_ij, y_ij]) / r_ij
-            if fx_i == 0:
-                if fy_i == 0:
-                    n_upwind = np.array([0,0])
+            if fx_i <= 1e-12:
+                if fy_i <= 1e-12:
+                    n_upwind = np.array([0.0,0.0])
                 else:
-                    n_upwind = np.array([0,-fy_i/abs(fy_i)])
-            elif fy_i == 0:
-                if fx_i == 0:
-                    n_upwind = np.array([0,0])
+                    n_upwind = np.array([0.0,-fy_i/abs(fy_i)])
+            elif fy_i <= 1e-12:
+                if fx_i <=1e-12:
+                    n_upwind = np.array([0.0,0.0])
                 else:
-                    n_upwind = np.array([-fx_i/abs(fx_i),0])
+                    n_upwind = np.array([-fx_i/abs(fx_i),0.0])
             else:
                 n_upwind = np.array([-fx_i/abs(fx_i), -fy_i/abs(fy_i)])
-            if n_ij @ n_upwind > 0:
+            if n_ij[0] * n_upwind[0] +  n_ij[1] * n_upwind[1]> 0:
                 w_ij = calculate_weight(r_ij, R_e)
             else:
                 w_ij = 1e-12
