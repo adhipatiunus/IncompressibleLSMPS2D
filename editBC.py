@@ -16,18 +16,18 @@ from neighbor_search_verlet import multiple_verlet
 from LSMPS import LSMPSb, LSMPSbUpwind
 from visualize import visualize
 
-RAD = 0.25
-xcenter = 5 * (2 * RAD)
-ycenter = 7.5 * (2 * RAD)
+RAD = 0.5
+xcenter = 2.5 * (2 * RAD)
+ycenter = 3.75 * (2 * RAD)
 xmin = 0
-xmax = xcenter + 10 * (2 * RAD)
+xmax = xcenter + 5 * (2 * RAD)
 ymin = 0
-ymax = ycenter + 7.5 * (2 * RAD)
+ymax = ycenter + 3.75 * (2 * RAD)
 sigma = 0.015
-r_e = 2.1
-r_s = 1.3
+r_e = 2.5
+r_s = 1.0
 # %%
-node_x, node_y, node_z, normal_x_bound, normal_y_bound, n_boundary, index, diameter = generate_particles_singleres(xmin, xmax, ymin, ymax, sigma, RAD)
+node_x, node_y, node_z, normal_x_bound, normal_y_bound, n_boundary, index, diameter = generate_particles_singleres(xmin, xmax, xcenter, ymin, ymax, ycenter, sigma, RAD)
 n_particle = len(node_x)
 cell_size = r_e * np.max(diameter)
 # %%
@@ -215,18 +215,46 @@ p1 = np.linalg.solve(LHS, RHS)
 # Solve corrected velocity
 u_corr = u_pred.copy()
 v_corr = v_pred.copy()
+LHS = np.zeros((n_particle, n_particle))
 idx_begin = 0
 idx_end = n_boundary[0]
-u_corr[idx_begin:idx_end] = u_pred[idx_begin:idx_end] - \
-    dt * (EtaDx[idx_begin:idx_end] @ (p1 - p0))
-v_corr[idx_begin:idx_end] = v_pred[idx_begin:idx_end] - \
-    dt * (EtaDy[idx_begin:idx_end] @ (p1 - p0))
-idx_begin = n_boundary[3]
+LHS[idx_begin:idx_end] = (EtaDx[idx_begin:idx_end].T * normal_x_bound[idx_begin:idx_end]).T \
+                            + (EtaDy[idx_begin:idx_end].T * normal_y_bound[idx_begin:idx_end]).T
+idx_begin = idx_end
+idx_end = n_boundary[3]
+LHS[idx_begin:idx_end, idx_begin:idx_end] = np.eye(idx_end - idx_begin)
+idx_begin = idx_end
 idx_end = n_particle
-u_corr[idx_begin:idx_end] = u_pred[idx_begin:idx_end] - \
-    dt * (EtaDx[idx_begin:idx_end] @ (p1 - p0))
-v_corr[idx_begin:idx_end] = v_pred[idx_begin:idx_end] - \
-    dt * (EtaDy[idx_begin:idx_end] @ (p1 - p0))
+LHS[idx_begin:idx_end,idx_begin:idx_end] = np.eye(idx_end - idx_begin) / dt
+LHS[idx_begin:idx_end] += Ddrag_2d[idx_begin:idx_end]
+# Solve for u
+RHS = np.zeros(n_particle)
+idx_begin = 0
+idx_end = n_boundary[0]
+RHS[idx_begin:idx_end] = 0
+idx_begin = idx_end
+idx_end = n_boundary[3]
+RHS[idx_begin:idx_end] = 1.0
+idx_begin = idx_end
+idx_end = n_particle
+RHS[idx_begin:idx_end] = u_pred[idx_begin:idx_end] / dt \
+                            - EtaDx[idx_begin:idx_end] @ (p1 - p0) \
+                            + Ddrag_2d[idx_begin:idx_end] @ u_pred
+u_corr = np.linalg.solve(LHS, RHS)
+# Solve for v
+RHS = np.zeros(n_particle)
+idx_begin = 0
+idx_end = n_boundary[0]
+RHS[idx_begin:idx_end] = 0
+idx_begin = idx_end
+idx_end = n_boundary[3]
+RHS[idx_begin:idx_end] = 0.0
+idx_begin = idx_end
+idx_end = n_particle
+RHS[idx_begin:idx_end] = v_pred[idx_begin:idx_end] / dt \
+                            - EtaDy[idx_begin:idx_end] @ (p1 - p0) \
+                            + Ddrag_2d[idx_begin:idx_end] @ v_pred
+v_corr = np.linalg.solve(LHS, RHS)
 u1, v1 = u_corr, v_corr
 u0, v0 = u, v
 # %%
@@ -235,7 +263,8 @@ T += dt
 CL = []
 CD = []
 ts = []
-while T < 100 * dt:
+#%%
+while T < 1:
     dt = np.min(alphaC * diameter / np.sqrt(u1**2+v1**2))
     #print(dt)
     # 1, Velocity prediction
@@ -326,18 +355,47 @@ while T < 100 * dt:
 
     u_corr = u_pred.copy()
     v_corr = v_pred.copy()
+    # Solve corrected velocity
+    LHS = np.zeros((n_particle, n_particle))
     idx_begin = 0
     idx_end = n_boundary[0]
-    u_corr[idx_begin:idx_end] = u_pred[idx_begin:idx_end] - \
-                                2 * dt / 3 * (EtaDx[idx_begin:idx_end] @ phi)
-    v_corr[idx_begin:idx_end] = v_pred[idx_begin:idx_end] - \
-                                2 * dt / 3 * (EtaDy[idx_begin:idx_end] @ phi)
-    idx_begin = n_boundary[3]
+    LHS[idx_begin:idx_end] = (EtaDx[idx_begin:idx_end].T * normal_x_bound[idx_begin:idx_end]).T \
+                                + (EtaDy[idx_begin:idx_end].T * normal_y_bound[idx_begin:idx_end]).T
+    idx_begin = idx_end
+    idx_end = n_boundary[3]
+    LHS[idx_begin:idx_end, idx_begin:idx_end] = np.eye(idx_end - idx_begin)
+    idx_begin = idx_end
     idx_end = n_particle
-    u_corr[idx_begin:idx_end] = u_pred[idx_begin:idx_end] - \
-                                2 * dt / 3 * (EtaDx[idx_begin:idx_end] @ phi)
-    v_corr[idx_begin:idx_end] = v_pred[idx_begin:idx_end] - \
-                                2 * dt / 3 * (EtaDy[idx_begin:idx_end] @ phi)
+    LHS[idx_begin:idx_end,idx_begin:idx_end] = 3 * np.eye(idx_end - idx_begin) / (2 * dt)
+    LHS[idx_begin:idx_end] += Ddrag_2d[idx_begin:idx_end]
+    # Solve for u
+    RHS = np.zeros(n_particle)
+    idx_begin = 0
+    idx_end = n_boundary[0]
+    RHS[idx_begin:idx_end] = 0
+    idx_begin = idx_end
+    idx_end = n_boundary[3]
+    RHS[idx_begin:idx_end] = 1.0
+    idx_begin = idx_end
+    idx_end = n_particle
+    RHS[idx_begin:idx_end] = 3 * u_pred[idx_begin:idx_end] / (2 * dt) \
+                                - EtaDx[idx_begin:idx_end] @ phi \
+                                + Ddrag_2d[idx_begin:idx_end] @ u_pred
+    u_corr = np.linalg.solve(LHS, RHS)
+    # Solve for v
+    RHS = np.zeros(n_particle)
+    idx_begin = 0
+    idx_end = n_boundary[0]
+    RHS[idx_begin:idx_end] = 0
+    idx_begin = idx_end
+    idx_end = n_boundary[3]
+    RHS[idx_begin:idx_end] = 0.0
+    idx_begin = idx_end
+    idx_end = n_particle
+    RHS[idx_begin:idx_end] = 3 * v_pred[idx_begin:idx_end] / (2 * dt) \
+                                - EtaDy[idx_begin:idx_end] @ phi \
+                                + Ddrag_2d[idx_begin:idx_end] @ v_pred
+    v_corr = np.linalg.solve(LHS, RHS)
 
     u0, v0 = u1, v1
     u1, v1 = u_corr, v_corr
