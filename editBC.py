@@ -206,12 +206,12 @@ def LSMPSbUpwind(node_x, node_y, index, Rmax, R, r_e, R_s, neighbor, n_neighbor,
 #%%
 
 RAD = 0.5
-xcenter = 1 * (2 * RAD)
-ycenter = 1 * (2 * RAD)
+xcenter = 2.5 * (2 * RAD)
+ycenter = 3.5 * (2 * RAD)
 xmin = 0
-xmax = xcenter + 2 * (2 * RAD)
+xmax = xcenter + 5 * (2 * RAD)
 ymin = 0
-ymax = ycenter + 1 * (2 * RAD)
+ymax = ycenter + 3.5 * (2 * RAD)
 sigma = 0.02
 r_e = 2.1
 r_s = 1.0
@@ -326,28 +326,6 @@ if sphere:
     rhs_u[idx_begin:idx_end] = 1.0
     u[idx_begin:idx_end] = 1.0
 #%%
-n_thread = threading.active_count()
-i_list = np.array_split(index, n_thread)
-resUpwind = Parallel(n_jobs=-1)(delayed(LSMPSbUpwind)(node_x, node_y, idx, Rmax, R, r_e, R_s, neighbor, n_neighbor, u, v) for idx in i_list)
-EtaDxUpwind = [0] * n_thread
-EtaDyUpwind = [0] * n_thread
-EtaDxxUpwind = [0] * n_thread
-EtaDxyUpwind = [0] * n_thread
-EtaDyyUpwind = [0] * n_thread
-
-for i in range(n_thread):
-   EtaDxUpwind[i] = resUpwind[i][0]
-   EtaDyUpwind[i] = resUpwind[i][1]
-   EtaDxxUpwind[i] = resUpwind[i][2]
-   EtaDxyUpwind[i] = resUpwind[i][3]
-   EtaDyyUpwind[i] = resUpwind[i][4]
-
-EtaDxUpwind = sparse.csr_matrix(sparse.vstack(EtaDxUpwind))
-EtaDyUpwind = sparse.csr_matrix(sparse.vstack(EtaDyUpwind))
-EtaDxxUpwind = sparse.csr_matrix(sparse.vstack(EtaDxxUpwind))
-EtaDxyUpwind = sparse.csr_matrix(sparse.vstack(EtaDxyUpwind))
-EtaDyyUpwind = sparse.csr_matrix(sparse.vstack(EtaDyyUpwind))
-#%%
 # Poisson matrix
 idx_begin = n_boundary[3]
 idx_end = n_particle
@@ -362,7 +340,7 @@ alphaC = 0.1
 dt = 0.005
 #dt = 0.05
 nu = 0.01
-eta = 1e-4
+eta = 1e-2
 T = 0
 
 idx_begin = n_boundary[3]
@@ -374,9 +352,6 @@ dxx_2d = EtaDxx
 dxy_2d = EtaDxy
 dyy_2d = EtaDyy
 
-dx_upwind = EtaDxUpwind
-dy_upwind = EtaDyUpwind
-
 #%%
 # Solving initial pressure field
 n_inner = idx_end - idx_begin
@@ -384,7 +359,7 @@ n_inner = idx_end - idx_begin
 u_conv = u.reshape(n_particle,1)
 v_conv = v.reshape(n_particle,1)
 
-conv_2d = dx_upwind.multiply(u_conv) + dy_upwind.multiply(v_conv)
+conv_2d = dx_2d.multiply(u_conv) + dy_2d.multiply(v_conv)
 
 RHS_p = -dx_2d[n_bound:].dot(conv_2d.dot(u)) - dy_2d[n_bound:].dot(conv_2d.dot(v))
 RHS_p = np.concatenate((rhs_p, RHS_p))
@@ -452,32 +427,12 @@ ts = []
 while T < 5:
     #dt = np.min(alphaC * diameter / np.sqrt(u1**2+v1**2))
     print(' T = ', T)
-    n_thread = threading.active_count()
-    i_list = np.array_split(index, n_thread)
-    resUpwind = Parallel(n_jobs=-1)(delayed(LSMPSbUpwind)(node_x, node_y, idx, Rmax, R, r_e, R_s, neighbor, n_neighbor, u1, v1) for idx in i_list)
-    
-    EtaDxUpwind = [0] * n_thread
-    EtaDyUpwind = [0] * n_thread
-    EtaDxxUpwind = [0] * n_thread
-    EtaDxyUpwind = [0] * n_thread
-    EtaDyyUpwind = [0] * n_thread
-
-    for i in range(n_thread):
-       EtaDxUpwind[i] = resUpwind[i][0]
-       EtaDyUpwind[i] = resUpwind[i][1]
-
-    EtaDxUpwind = sparse.csr_matrix(sparse.vstack(EtaDxUpwind))
-    EtaDyUpwind = sparse.csr_matrix(sparse.vstack(EtaDyUpwind))
-    
-    dx_upwind = EtaDxUpwind
-    dy_upwind = EtaDyUpwind
-    
     # 1, Velocity prediction
     # Calculate predicted velocity
     # Create LHS matrix for velocity
     u_conv = u1.reshape(n_particle,1)
     v_conv = v1.reshape(n_particle,1)
-    conv_2d = dx_upwind.multiply(u_conv) + dy_upwind.multiply(v_conv)
+    conv_2d = dx_2d.multiply(u_conv) + dy_2d.multiply(v_conv)
     diff_2d = I_2d[n_bound:] - 2 / 3 * dt * nu * (dxx_2d[n_bound:] + dyy_2d[n_bound:])
     in_LHS_2d = diff_2d + 2 / 3 * dt * (conv_2d[n_bound:] + Ddrag_2d[n_bound:])
     # solve for u
