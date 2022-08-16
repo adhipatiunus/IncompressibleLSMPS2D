@@ -206,15 +206,15 @@ def LSMPSbUpwind(node_x, node_y, index, Rmax, R, r_e, R_s, neighbor, n_neighbor,
 #%%
 
 RAD = 0.5
-xcenter = 5 * (2 * RAD)
-ycenter = 7.5 * (2 * RAD)
+xcenter = 1 * (2 * RAD)
+ycenter = 1 * (2 * RAD)
 xmin = 0
-xmax = xcenter + 10 * (2 * RAD)
+xmax = xcenter + 2 * (2 * RAD)
 ymin = 0
-ymax = ycenter + 7.5 * (2 * RAD)
-sigma = 0.015
+ymax = ycenter + 1 * (2 * RAD)
+sigma = 0.02
 r_e = 2.1
-r_s = 1.3
+r_s = 1.0
 sphere = True
 # %%
 node_x, node_y, node_z, normal_x_bound, normal_y_bound, n_boundary, index, diameter = generate_particles_singleres(xmin, xmax, ymin, ymax, sigma, RAD)
@@ -354,10 +354,13 @@ idx_end = n_particle
 # create Poisson matrix
 poisson_2d = EtaDxx + EtaDyy
 poisson_2d = sparse.vstack((p_bound_2d, poisson_2d[idx_begin:idx_end]))
+poisson_2d = sparse.linalg.factorized(poisson_2d.tocsc())
 #%%
 # NS solver
 alphaC = 0.1
-dt = np.min(alphaC * diameter / np.sqrt(u**2+v**2))
+#dt = np.min(alphaC * diameter / np.sqrt(u**2+v**2))
+dt = 0.005
+#dt = 0.05
 nu = 0.01
 eta = 1e-4
 T = 0
@@ -385,7 +388,7 @@ conv_2d = dx_upwind.multiply(u_conv) + dy_upwind.multiply(v_conv)
 
 RHS_p = -dx_2d[n_bound:].dot(conv_2d.dot(u)) - dy_2d[n_bound:].dot(conv_2d.dot(v))
 RHS_p = np.concatenate((rhs_p, RHS_p))
-p0, info = linalg.bicgstab(poisson_2d, RHS_p, x0 = p, tol = 1e-7)
+p0 = poisson_2d(RHS_p)
 #%%
 in_solid_ = (node_x - xcenter)**2 + (node_y - ycenter)**2 <= (RAD+1e-13)**2 
 darcy_drag_ = (1 / eta)*in_solid_.astype(float)
@@ -395,18 +398,19 @@ Ddrag_2d = sparse.csr_matrix(Ddrag_2d)
 # Solving predicted velocity
 diff_2d = I_2d[n_bound:] - nu * dt * (dxx_2d[n_bound:] + dyy_2d[n_bound:])
 in_LHS_2d = diff_2d + conv_2d[n_bound:] + Ddrag_2d[n_bound:]
-
-in_LHS_2d = sparse.vstack((u_bound_2d, in_LHS_2d))
 # solve for u
 RHS_u = u[n_bound:] - dt * dx_2d[n_bound:].dot(p0)
 RHS_u = np.concatenate((rhs_u, RHS_u))
+LHS_2d = sparse.vstack((u_bound_2d, in_LHS_2d))
 
-u_pred, info = linalg.bicgstab(in_LHS_2d, RHS_u, x0 = u, tol = 1e-7)
+u_pred = linalg.spsolve(LHS_2d, RHS_u)
+
 # solve for v
 RHS_v = v[n_bound:] - dt * dy_2d[n_bound:].dot(p0)
 RHS_v = np.concatenate((rhs_v, RHS_v))
+LHS_2d = sparse.vstack((v_bound_2d, in_LHS_2d))
 
-v_pred, info = linalg.bicgstab(in_LHS_2d, RHS_v, x0 = v, tol = 1e-7)
+v_pred = linalg.spsolve(LHS_2d, RHS_v)
 #%%
 # Solve p1
 ddrag_u = Ddrag_2d.dot(u_pred - 0)
@@ -416,23 +420,25 @@ RHS_p = (dxx_2d[n_bound:] + dyy_2d[n_bound:]).dot(p0) \
         + dx_2d[n_bound:].dot(ddrag_u) + dy_2d[n_bound:].dot(ddrag_v)
 RHS_p = np.concatenate((rhs_p, RHS_p))
 
-p1, info = linalg.bicgstab(poisson_2d, RHS_p, x0 = p0, tol = 1e-7)
+p1 = poisson_2d(RHS_p)
 #%%
 # Solving corrected velocity
 in_LHS_2d = I_2d[n_bound:] + dt * Ddrag_2d[n_bound:]
 
-in_LHS_2d = sparse.vstack((u_bound_2d, in_LHS_2d))
 # solve for u
 RHS_u = u_pred[n_bound:] - dt * (dx_2d[n_bound:].dot(p1 - p0) + Ddrag_2d[n_bound:].dot(u_pred))
 RHS_u = np.concatenate((rhs_u, RHS_u))
+LHS_2d = sparse.vstack((u_bound_2d, in_LHS_2d))
 
-u_corr, info = linalg.bicgstab(in_LHS_2d, RHS_u, x0 = u_pred, tol = 1e-7)
+u_corr = linalg.spsolve(LHS_2d, RHS_u)
 
 # solve for v
 RHS_v = v_pred[n_bound:] - dt * (dy_2d[n_bound:].dot(p1 - p0) + Ddrag_2d[n_bound:].dot(v_pred))
 RHS_v = np.concatenate((rhs_v, RHS_v))
 
-v_corr, info = linalg.bicgstab(in_LHS_2d, RHS_v, x0 = v_pred, tol = 1e-7)
+LHS_2d = sparse.vstack((v_bound_2d, in_LHS_2d))
+
+v_corr = linalg.spsolve(LHS_2d, RHS_v)
 
 u1, v1 = u_corr, v_corr
 u0, v0 = u, v
@@ -443,9 +449,9 @@ CL = []
 CD = []
 ts = []
 #%%
-while T < 1:
-    dt = np.min(alphaC * diameter / np.sqrt(u1**2+v1**2))
-    
+while T < 5:
+    #dt = np.min(alphaC * diameter / np.sqrt(u1**2+v1**2))
+    print(' T = ', T)
     n_thread = threading.active_count()
     i_list = np.array_split(index, n_thread)
     resUpwind = Parallel(n_jobs=-1)(delayed(LSMPSbUpwind)(node_x, node_y, idx, Rmax, R, r_e, R_s, neighbor, n_neighbor, u1, v1) for idx in i_list)
@@ -459,15 +465,9 @@ while T < 1:
     for i in range(n_thread):
        EtaDxUpwind[i] = resUpwind[i][0]
        EtaDyUpwind[i] = resUpwind[i][1]
-       EtaDxxUpwind[i] = resUpwind[i][2]
-       EtaDxyUpwind[i] = resUpwind[i][3]
-       EtaDyyUpwind[i] = resUpwind[i][4]
 
     EtaDxUpwind = sparse.csr_matrix(sparse.vstack(EtaDxUpwind))
     EtaDyUpwind = sparse.csr_matrix(sparse.vstack(EtaDyUpwind))
-    EtaDxxUpwind = sparse.csr_matrix(sparse.vstack(EtaDxxUpwind))
-    EtaDxyUpwind = sparse.csr_matrix(sparse.vstack(EtaDxyUpwind))
-    EtaDyyUpwind = sparse.csr_matrix(sparse.vstack(EtaDyyUpwind))
     
     dx_upwind = EtaDxUpwind
     dy_upwind = EtaDyUpwind
@@ -484,16 +484,16 @@ while T < 1:
     LHS_2d = sparse.vstack((u_bound_2d, in_LHS_2d))
     RHS_u = 4 / 3 * u1[n_bound:] - 1 / 3 * u0[n_bound:] \
             - 2 / 3 * dt * dx_2d[n_bound:].dot(p1)
-    RHS = np.concatenate((rhs_u, RHS_u))
+    RHS_u = np.concatenate((rhs_u, RHS_u))
     
-    u_pred, info = linalg.bicgstab(LHS_2d, RHS, x0 = u1, tol = 1e-7)
+    u_pred = linalg.spsolve(LHS_2d, RHS_u)
     # solve for v
     LHS_2d = sparse.vstack((v_bound_2d, in_LHS_2d))
     RHS_v = 4 / 3 * v1[n_bound:] - 1 / 3 * v0[n_bound:] \
             - 2 / 3 * dt * dy_2d[n_bound:].dot(p1)
-    RHS = np.concatenate((rhs_v, RHS_v))
+    RHS_v = np.concatenate((rhs_v, RHS_v))
     
-    v_pred, info = linalg.bicgstab(LHS_2d, RHS, x0 = v1, tol = 1e-7)
+    v_pred = linalg.spsolve(LHS_2d, RHS_v)
     
     # 2. Pressure correction
     # Calculate value for phi
@@ -503,9 +503,9 @@ while T < 1:
                 + dx_2d[n_bound:].dot(ddrag_u) \
                 + dy_2d[n_bound:].dot(ddrag_v)
                 
-    RHS = np.concatenate((rhs_p, RHS_phi))
+    RHS_p = np.concatenate((rhs_p, RHS_phi))
     
-    phi, info = linalg.bicgstab(poisson_2d, RHS, tol = 1e-7)
+    phi = poisson_2d(RHS_p)
     
     divV = dx_2d.dot(u_pred) + dy_2d.dot(v_pred)
     
@@ -514,19 +514,20 @@ while T < 1:
     # Velocity correction
     # Create LHS matrix
     in_LHS_2d = I_2d[n_bound:] + Ddrag_2d[n_bound:]
-    LHS_2d = sparse.vstack((u_bound_2d, in_LHS_2d))
     
     # solve for u
+    LHS_2d = sparse.vstack((u_bound_2d, in_LHS_2d))
     RHS_u = u_pred[n_bound:] - 2 / 3 * dt * (dx_2d[n_bound:].dot(phi) + Ddrag_2d[n_bound:].dot(u_pred))
-    RHS = np.concatenate((rhs_u, RHS_u))
+    RHS_u = np.concatenate((rhs_u, RHS_u))
     
-    u_corr, info = linalg.bicgstab(LHS_2d, RHS, x0 = u_pred, tol = 1e-7)
+    u_corr = linalg.spsolve(LHS_2d, RHS_u)
     
     # solve for v
+    LHS_2d = sparse.vstack((v_bound_2d, in_LHS_2d))
     RHS_v = v_pred[n_bound:] - 2 / 3 * dt * (dy_2d[n_bound:].dot(phi) + Ddrag_2d[n_bound:].dot(v_pred))
-    RHS = np.concatenate((rhs_v, RHS_v))
+    RHS_v = np.concatenate((rhs_v, RHS_v))
     
-    v_corr, info = linalg.bicgstab(LHS_2d, RHS, x0 = v_pred, tol = 1e-7)
+    v_corr = linalg.spsolve(LHS_2d, RHS_v)
     
     u0, v0 = u1, v1
     u1, v1 = u_corr, v_corr
@@ -534,8 +535,8 @@ while T < 1:
     
     print(' max vres = ', np.max(np.sqrt(u_pred**2+v_pred**2)))
     # Force Calculation
-    u_solid = (u1[in_solid_] - 0) / eta
-    v_solid = (v1[in_solid_] - 0) / eta
+    u_solid = (u_pred[in_solid_] - 0) / eta
+    v_solid = (v_pred[in_solid_] - 0) / eta
     h_solid = diameter[in_solid_]
     c_x = np.sum((u_solid) *(h_solid**2)) / (0.5 * np.pi * RAD**2)
     c_y = np.sum((v_solid) *(h_solid**2)) / (0.5 * np.pi * RAD**2)
@@ -545,23 +546,9 @@ while T < 1:
     print(' CD = ', c_x)
     print(' CL = ', c_y)
     print(' dt = ', dt)
-    print(' T = ', T)
     
-    T += dt    
+    T += dt   
 #%%
 visualize(node_x, node_y, p1, diameter, 'initial_pressure.png')
-visualize(node_x, node_y, u_corr, diameter, 'initial_pressure.png')
-visualize(node_x, node_y, v_corr, diameter, 'initial_pressure.png')
-
-CD = np.array(CD)
-CL = np.array(CL)
-ts = np.array(ts)
-np.savez('x', node_x)
-np.savez('y', node_y)
-np.savez('u1', u1)
-np.savez('v1', v1)
-np.savez('u0', u0)
-np.savez('v0', v0)
-np.savez('p', p)
-np.savez('CL', CL)
-np.savez('CD', CD)
+visualize(node_x, node_y, u1, diameter, 'initial_pressure.png')
+visualize(node_x, node_y, v1, diameter, 'initial_pressure.png')
