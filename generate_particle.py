@@ -21,16 +21,20 @@ def generate_particles_singleres(xmin, xmax, ymin, ymax, sigma, R):
     # 1. East
     y_east = np.linspace(ymin, ymax, ny)
     x_east = np.ones_like(y_east) * xmax
-    normal_x_east = np.ones_like(y_east) * 1.0
+    normal_x_east = np.ones_like(y_east) * -1.0
     normal_y_east = np.zeros_like(y_east)
+    tangent_x_east = np.zeros_like(y_east)
+    tangent_y_east = np.ones_like(y_east)
     
     n_east = len(x_east)
     
     # 2. West
     y_west = np.linspace(ymin, ymax, ny)
     x_west = np.ones_like(y_west) * xmin
-    normal_x_west = np.ones_like(y_west) * -1.0
+    normal_x_west = np.ones_like(y_west) * 1.0
     normal_y_west = np.zeros_like(y_west)
+    tangent_x_west = np.zeros_like(y_west)
+    tangent_y_west = np.ones_like(y_west) * -1.0
     
     n_west = n_east + len(x_west)
 
@@ -38,7 +42,9 @@ def generate_particles_singleres(xmin, xmax, ymin, ymax, sigma, R):
     x_north = np.linspace(xmin+h, xmax-h, nx-2)
     y_north = np.ones_like(x_north) * ymax
     normal_x_north = np.zeros_like(x_north)
-    normal_y_north = np.ones_like(x_north) * 1.0
+    normal_y_north = np.ones_like(x_north) * -1.0
+    tangent_x_north = np.ones_like(y_east) * -1.0
+    tangent_y_north = np.zeros_like(y_east)
     
     n_north = n_west + len(x_north)
     
@@ -46,10 +52,15 @@ def generate_particles_singleres(xmin, xmax, ymin, ymax, sigma, R):
     x_south = np.linspace(xmin+h, xmax-h, nx-2)
     y_south = np.ones_like(x_south) * ymin
     normal_x_south = np.zeros_like(x_south)
-    normal_y_south = np.ones_like(x_south) * -1.0
+    normal_y_south = np.ones_like(x_south) * 1.0
+    tangent_x_south = np.ones_like(y_east)
+    tangent_y_south = np.zeros_like(y_east)
 
     normal_x_bound = np.concatenate((normal_x_east, normal_x_west, normal_x_north, normal_x_south))
     normal_y_bound = np.concatenate((normal_y_east, normal_y_west, normal_y_north, normal_y_south))
+    
+    tangent_x_bound = np.concatenate((tangent_x_east, tangent_x_west, tangent_x_north, tangent_x_south))
+    tangent_y_bound = np.concatenate((tangent_y_east, tangent_y_west, tangent_y_north, tangent_y_south))
 
     node_x = np.concatenate((x_east, x_west, x_north, x_south))
     node_y = np.concatenate((y_east, y_west, y_north, y_south))
@@ -83,19 +94,19 @@ def generate_particles_singleres(xmin, xmax, ymin, ymax, sigma, R):
     
     index = np.arange(N)
     
-    return node_x, node_y, node_z, normal_x_bound, normal_y_bound, n_boundary, index, diameter
+    return node_x, node_y, node_z, normal_x_bound, normal_y_bound, tangent_x_bound, tangent_y_bound, n_boundary, index, diameter
 
 def generate_particles(xmin, xmax, x_center, ymin, ymax, y_center, sigma, R):
     h1 = 1
     h2 = 1/2
     h3 = 1/4
     h4 = 1/8
-    h5 = 0.05
-    h6 = h5 / 1.25
-    h7 = h5 / 1.5
-    h8 = h5 / 2.0
+    h5 = 1/16
+    h6 = 1/32
+    h7 = 1/64
+    h8 = 1/128
 
-    h = h7 * sigma
+    h = h5 * sigma
 
     lx = xmax - xmin
     ly = ymax - ymin
@@ -110,6 +121,9 @@ def generate_particles(xmin, xmax, x_center, ymin, ymax, y_center, sigma, R):
     x_east = np.ones_like(y_east) * xmax
     normal_x_east = np.ones_like(y_east) * -1.0
     normal_y_east = np.zeros_like(y_east)
+    tangent_x_east = np.zeros_like(y_east)
+    tangent_y_east = np.ones_like(y_east)
+    
     n_east = len(x_east)
     
     # 2. West
@@ -117,23 +131,34 @@ def generate_particles(xmin, xmax, x_center, ymin, ymax, y_center, sigma, R):
     x_west = np.ones_like(y_west) * xmin
     normal_x_west = np.ones_like(y_west) * 1.0
     normal_y_west = np.zeros_like(y_west)
+    tangent_x_west = np.zeros_like(y_west)
+    tangent_y_west = np.ones_like(y_west) * -1.0
+    
     n_west = n_east + len(x_west)
 
     # 3. North
-    x_north = np.linspace(xmin + h, xmax - h, nx - 2)
+    x_north = np.linspace(xmin+h, xmax-h, nx-2)
     y_north = np.ones_like(x_north) * ymax
-    normal_x_north = np.ones_like(x_north) * -1.0
-    normal_y_north = np.zeros_like(x_north)
+    normal_x_north = np.zeros_like(x_north)
+    normal_y_north = np.ones_like(x_north) * -1.0
+    tangent_x_north = np.ones_like(x_north) * -1.0
+    tangent_y_north = np.zeros_like(x_north)
+    
     n_north = n_west + len(x_north)
     
     # 4. South
-    x_south = np.linspace(xmin + h, xmax - h, nx - 2)
+    x_south = np.linspace(xmin+h, xmax-h, nx-2)
     y_south = np.ones_like(x_south) * ymin
-    normal_x_south = np.ones_like(x_south) * 1.0
-    normal_y_south = np.zeros_like(x_south)
+    normal_x_south = np.zeros_like(x_south)
+    normal_y_south = np.ones_like(x_south)
+    tangent_x_south = np.ones_like(x_south)
+    tangent_y_south = np.zeros_like(x_south)
 
     normal_x_bound = np.concatenate((normal_x_east, normal_x_west, normal_x_north, normal_x_south))
     normal_y_bound = np.concatenate((normal_y_east, normal_y_west, normal_y_north, normal_y_south))
+    
+    tangent_x_bound = np.concatenate((tangent_x_east, tangent_x_west, tangent_x_north, tangent_x_south))
+    tangent_y_bound = np.concatenate((tangent_y_east, tangent_y_west, tangent_y_north, tangent_y_south))
 
     node_x = np.concatenate((x_east, x_west, x_north, x_south))
     node_y = np.concatenate((y_east, y_west, y_north, y_south))
@@ -276,7 +301,7 @@ def generate_particles(xmin, xmax, x_center, ymin, ymax, y_center, sigma, R):
     Y_MAX = y_bound_max
     
     # Second box
-    h = h6 * sigma
+    h = h5 * sigma
     n_layer = 1
     x_bound_min = xmin + n_layer * h
     x_bound_max = xmax - n_layer * h
@@ -315,7 +340,7 @@ def generate_particles(xmin, xmax, x_center, ymin, ymax, y_center, sigma, R):
     Y_MAX = y_bound_max
     
     # Third box
-    h = h7 * sigma
+    h = h5 * sigma
     n_layer = 1
     x_bound_min = xmin + h
     x_bound_max = xmax - h
@@ -357,7 +382,7 @@ def generate_particles(xmin, xmax, x_center, ymin, ymax, y_center, sigma, R):
     
     n_boundary = np.array([n_east, n_west, n_north, n_south])
     
-    return node_x, node_y, node_z, normal_x_bound, normal_y_bound, n_boundary, index, diameter
+    return node_x, node_y, node_z, normal_x_bound, normal_y_bound, tangent_x_bound, tangent_y_bound, n_boundary, index, diameter
 
 def generate_node_spherical(x_center, y_center, R_in, R_out, h):
     x_min = x_center - 2 * R_out
@@ -391,17 +416,7 @@ def generate_node_spherical(x_center, y_center, R_in, R_out, h):
 
 def generate_node_box(x_min, x_max, y_min, y_max, x_bound_min, x_bound_max, y_bound_min, y_bound_max, n_layer, h):    
     nx = int((x_max - x_min) / h) + 1
-    ny = int((y_max - y_min) / h) + 1
-    
-    safety = 1e-10
-    
-    x_outer_min = x_bound_min - n_layer * h
-    x_outer_max = x_bound_max + n_layer * h
-    y_outer_min = y_bound_min - n_layer * h
-    y_outer_max = y_bound_max + n_layer * h
-    
-    x = np.linspace(x_min, x_max, nx)
-    y = np.linspace(y_min, y_max, ny)
+    ny = int((y_max - y_min) / h) + 1403
     
     x_3d, y_3d = np.meshgrid(x, y)
     
