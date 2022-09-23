@@ -212,7 +212,7 @@ ymin = 0
 ymax = ycenter + 2.5
 width = 1
 height = 1
-sigma = 5e-2
+sigma = 1e-2
 r_e = 2.5
 r_s = 1.0
 brinkman = True
@@ -339,7 +339,7 @@ Re = 6e1
 nu = u0 * width / Re
 eta = 1e-4
 T = 0
-omega = .2
+omega = .1
 
 idx_begin = n_boundary[3]
 idx_end = n_particle
@@ -487,31 +487,6 @@ while T < 1e1:
     
     T += dt    
 #%%
-vpm_data = np.genfromtxt('vpm_data.csv', delimiter=',')
-vpm_x = vpm_data[1:,0]
-vpm_x = vpm_data[1:,0] - min(vpm_x)
-vpm_y = vpm_data[1:,1]
-vpm_y = vpm_data[1:,1] - min(vpm_y)
-vpm_u = vpm_data[1:,4]
-vpm_v = vpm_data[1:,5]
-#%%
-vpm_x_center = (min(vpm_x) + max(vpm_x)) * 0.5
-SAFETY = 1e-10
-vpm_mid = (vpm_x <= vpm_x_center + SAFETY) * (vpm_x >= vpm_x_center - SAFETY)
-vpm_y_mid = vpm_y[vpm_mid]
-vpm_u_mid = vpm_u[vpm_mid]
-mid_sort = vpm_y_mid.argsort()
-vpm_y_mid = vpm_y_mid[mid_sort]
-vpm_u_mid = vpm_u_mid[mid_sort]
-#%%
-y_ansys_mid = np.load('y_ansys_center.npy')
-u_ansys_mid = np.load('vx_ansys_center.npy')
-#%%
-visualize(node_x, node_y, p, diameter, '$P\ (Pa)$')
-visualize(node_x, node_y, u, diameter, '$v_x\  (m/s)$')
-visualize(node_x, node_y, v, diameter, '$v_{y}\ (m/s)$')
-visualize(node_x, node_y, np.sqrt(u**2+v**2), diameter, '$v_{res}\ (m/s)$')
-#%%
 CD = np.array(CD)
 CL = np.array(CL)
 ts = np.array(ts)
@@ -523,77 +498,6 @@ np.save('p.npy', p)
 np.save('CL.npy', CL)
 np.save('CD.npy', CD)
 np.save('ts.npy', ts)
-#%%
-
-x = np.load('x.npy')
-y = np.load('y.npy')
-
-u = np.load('u.npy')
-v = np.load('v.npy')
-p = np.load('p.npy')
-
-CD = np.load('CD.npy')
-CL = np.load('CL.npy')
-ts = np.load('ts.npy')
-#%%
-# CD and CL plot
-# Creating a plot
-fig, ax = plt.subplots()
-ax.plot(ts, CD, linewidth=2, label='Semi-Implicit Method')  # For mesh & manual grid use
-
-CD_ref = np.load('CD_ref.npy')
-ts2 = np.load('time.npy')
-
-ax.plot(ts2, CD_ref, linewidth=2, label="VPM")
-
-# Adjust the plot
-ax.grid(color='gray', linestyle=':', linewidth=1)
-
-ax.set_title('Drag Coefficient', pad=15, size=20)
-
-ax.set_xlabel("t (s)", style="italic", size=15)
-ax.set_ylabel("$C_D$", style="italic", size=15)
-
-# Change the figure size
-ax.tick_params(axis='x', labelsize=10)
-ax.tick_params(axis='y', labelsize=10)
-
-plt.ylim(0, 3)
-
-ax.legend()
-
-# Change the figure size
-fig.set_size_inches(5, 4)
-
-# Saving the figure
-# plt.savefig('Save_Figure.png', dpi=300, bbox_inches="tight")
-
-plt.show()
-#%%
-SAFETY = 1e-10
-mid = mid = (x <= xcenter + SAFETY) * (x >= xcenter - SAFETY)
-y_mid = y[mid]
-u_mid = u[mid]
-mid_sort = y_mid.argsort()
-y_mid = y_mid[mid_sort]
-u_mid = u_mid[mid_sort]
-#%%
-fig, ax = plt.subplots()
-ax.plot(y_mid, u_mid, linewidth = 2, label = 'LSMPS')
-
-ax.plot(y_ansys_mid, u_ansys_mid, linewidth = 2, linestyle = 'dashed', label = 'Ansys')
-
-ax.set_title('$v_x\ profile\ along\ y-axis$', pad=15, size=10)
-
-ax.set_xlabel("$y$", style="italic", size=15)
-ax.set_ylabel("$v_x$", style="italic", size=15)
-
-ax.legend()
-
-fig.set_size_inches(5, 4)
-
-ax.grid(color='gray', linestyle=':', linewidth=1)
-plt.show()
 #%%
 import csv
 vres = np.sqrt(u**2+v**2)
