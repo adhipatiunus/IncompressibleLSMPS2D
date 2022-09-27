@@ -203,15 +203,15 @@ def LSMPSbUpwind(node_x, node_y, index, diameter, r_e, neighbor, n_neighbor, fx,
 #%%
 
 RAD = .5
-xcenter = 2
-ycenter = 5
+xcenter = 5
+ycenter = 1e1
 xmin = 0
 xmax = xcenter + 1e1
 ymin = 0
-ymax = ycenter + 5
-width = .1
-height = 5
-sigma = 5e-2
+ymax = ycenter + 1e1
+width = 1
+height = 1
+sigma = 1e-1
 r_e = 2.5
 r_s = 1.0
 brinkman = True
