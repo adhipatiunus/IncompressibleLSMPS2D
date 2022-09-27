@@ -336,7 +336,7 @@ alphaC = 0.1
 #dt = 0.05
 Re = 4e1
 nu = u0 * width / Re
-eta = 1e-8
+eta = 1e-12
 T = 0
 omega = 0
 
