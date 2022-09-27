@@ -473,8 +473,8 @@ while T < 1e1:
     
     print(' max vres = ', np.max(np.sqrt(u**2+v**2)))
     # Force Calculation
-    u_solid = (u_pred[in_solid_] - u_obs[in_solid_]) / eta
-    v_solid = (v_pred[in_solid_] - v_obs[in_solid_]) / eta
+    u_solid = (u[in_solid_] - u_obs[in_solid_]) / eta
+    v_solid = (v[in_solid_] - v_obs[in_solid_]) / eta
     h_solid = diameter[in_solid_]
     
     c_x = np.sum((u_solid) *(h_solid**2)) / (0.5 * (width))
