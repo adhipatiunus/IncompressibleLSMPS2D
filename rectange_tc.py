@@ -461,7 +461,7 @@ while T < 1e2:
     RHS_v = v_pred[n_bound:] / dt - (dy_2d[n_bound:].dot(phi) - Ddrag_2d[n_bound:].dot(v_pred))
     RHS_v = np.concatenate((rhs_v, RHS_v))
     
-    v_corr = linalg,spsolve(LHS_2d, RHS_v)
+    v_corr = linalg.spsolve(LHS_2d, RHS_v)
     
     u, v = u_corr, v_corr
     
