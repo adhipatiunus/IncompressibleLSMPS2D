@@ -424,15 +424,15 @@ while T < 1e2:
     u_bound = np.array([np.mean(u_pred[np.array(neighbor[i])]) for i in range(idx_begin, idx_end)])
     v_bound = np.array([np.mean(v_pred[np.array(neighbor[i])]) for i in range(idx_begin, idx_end)])
     
-    
+    """
     rhs_p[idx_begin:idx_end] = 1 / dt * (u_bound * normal_x_bound[idx_begin:idx_end] + v_bound * normal_y_bound[idx_begin:idx_end])
-    
+    """
     idx_begin = idx_end
     idx_end = n_particle
-    """
+    
     RHS_phi = 1 / dt * (dx_2d[n_bound:].dot(u_pred) + dy_2d[n_bound:].dot(v_pred)) \
                 + dx_2d[n_bound:].dot(Ddrag_2d.dot(u_pred)) + dy_2d[n_bound:].dot(Ddrag_2d.dot(v_pred))
-    """
+    
     
     RHS_phi = 1 / dt * (dx_2d[n_bound:].dot(u_pred) + dy_2d[n_bound:].dot(v_pred))
     
@@ -447,7 +447,6 @@ while T < 1e2:
     
     # Velocity correction
     # Create LHS matrix
-    """
     in_LHS_2d = I_2d[n_bound:] / dt + Ddrag_2d[n_bound:]
     
     # solve for u
@@ -465,11 +464,11 @@ while T < 1e2:
     v_corr = spsolve(LHS_2d, RHS_v)
     
     u, v = u_corr, v_corr
-    """
     
+    """
     u[n_bound:] = u_pred[n_bound:] - dt * dx_2d[n_bound:].dot(phi)
     v[n_bound:] = v_pred[n_bound:] - dt * dy_2d[n_bound:].dot(phi)
-    
+    """
     p1 = p
     
     print(' max vres = ', np.max(np.sqrt(u**2+v**2)))
