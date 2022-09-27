@@ -12,7 +12,6 @@ from scipy.sparse import linalg
 import matplotlib.pyplot as plt
 import threading
 from joblib import Parallel, delayed
-from scikits.umfpack import spsolve, splu
 
 from generate_particle import generate_particles, generate_particles_rectangle, generate_particles_singleres
 from neighbor_search import neighbor_search_cell_list
@@ -409,13 +408,13 @@ while T < 1e1:
     RHS_u = u[n_bound:] / dt + Ddrag_2d[n_bound:] @ u_obs
     RHS_u = np.concatenate((rhs_u, RHS_u))
     
-    u_pred = spsolve(LHS_2d, RHS_u)
+    u_pred = linalg.spsolve(LHS_2d, RHS_u)
     # solve for v
     LHS_2d = sparse.vstack((v_bound_2d, in_LHS_2d))
     RHS_v = v[n_bound:] / dt + Ddrag_2d[n_bound:] @ v_obs
     RHS_v = np.concatenate((rhs_v, RHS_v))
     
-    v_pred = spsolve(LHS_2d, RHS_v)
+    v_pred = linalg.spsolve(LHS_2d, RHS_v)
     
     # 2. Pressure correction
     # Calculate value for phi
