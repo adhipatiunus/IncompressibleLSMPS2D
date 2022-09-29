@@ -338,7 +338,7 @@ Re = 2e1
 nu = u0 * width / Re
 eta = 1e-4
 T = 0
-omega = .4
+omega = .8
 
 idx_begin = n_boundary[3]
 idx_end = n_particle
