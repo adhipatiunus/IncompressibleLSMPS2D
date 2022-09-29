@@ -372,7 +372,7 @@ CL = []
 CD = []
 ts = []
 #%%
-dt = 5e-3
+dt = 2.5e-3
 while T < 5e1:
     #dt = np.min(alphaC * diameter / np.sqrt(u**2+v**2))
     n_thread = threading.active_count()
