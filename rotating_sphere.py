@@ -489,10 +489,10 @@ while T < 1e1:
     print(' CL = ', c_y)
     print(' dt = ', dt)
     
-    visualize(node_x, node_y, p, diameter, '$P\ (Pa)$')
-    visualize(node_x, node_y, u, diameter, '$v_x\  (m/s)$')
-    visualize(node_x, node_y, v, diameter, '$v_{y}\ (m/s)$')
-    visualize(node_x, node_y, np.sqrt(u**2+v**2), diameter, '$v_{res}\ (m/s)$')
+    #visualize(node_x, node_y, p, diameter, '$P\ (Pa)$')
+    #visualize(node_x, node_y, u, diameter, '$v_x\  (m/s)$')
+    #visualize(node_x, node_y, v, diameter, '$v_{y}\ (m/s)$')
+    #visualize(node_x, node_y, np.sqrt(u**2+v**2), diameter, '$v_{res}\ (m/s)$')
     
     T += dt    
 
