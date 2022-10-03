@@ -12,6 +12,7 @@ from scipy.sparse import linalg
 import matplotlib.pyplot as plt
 import threading
 from joblib import Parallel, delayed
+from scikits.umfpack import spsolve, splu
 
 from generate_particle import generate_particles, generate_particles_rectangle, generate_particles_singleres
 from neighbor_search import neighbor_search_cell_list
@@ -203,27 +204,27 @@ def LSMPSbUpwind(node_x, node_y, index, diameter, r_e, neighbor, n_neighbor, fx,
 #%%
 
 RAD = .5
-xcenter = 1.5
-ycenter = 2.5
+xcenter = 5
+ycenter = 7.5
 xmin = 0
-xmax = xcenter + 4.5
+xmax = xcenter + 15
 ymin = 0
-ymax = ycenter + 2.5
+ymax = ycenter + 7.5
 width = 1
 height = 1
-sigma = 1e-2
+sigma = 1
 r_e = 2.5
 r_s = 1.0
 brinkman = True
 # %%
-node_x, node_y, node_z, normal_x_bound, normal_y_bound, tangent_x_bound, tangent_y_bound, n_boundary, index, diameter = generate_particles_singleres(xmin, xmax, ymin, ymax, sigma, RAD)
+node_x, node_y, node_z, normal_x_bound, normal_y_bound, tangent_x_bound, tangent_y_bound, n_boundary, index, diameter = generate_particles(xmin, xmax, xcenter, ymin, ymax, ycenter, sigma, RAD)
 n_particle = node_x.shape[0]
 cell_size = r_e * np.max(diameter)
 # %%
 # Neighbor search
 n_bound = n_boundary[3]
 h = diameter 
-rc = np.concatenate((h[:n_bound] * r_e, h[n_bound:] * r_e))
+rc = np.concatenate((h[:n_bound] * r_e * 2, h[n_bound:] * r_e))
 nodes_3d = np.concatenate((node_x.reshape(-1,1), node_y.reshape(-1,1), node_z.reshape(-1,1)), axis = 1)
 neighbor, n_neighbor = multiple_verlet(nodes_3d, n_bound, rc)
 #%%
@@ -338,7 +339,7 @@ Re = 2e1
 nu = u0 * width / Re
 eta = 1e-4
 T = 0
-omega = 1
+omega = -1
 
 idx_begin = n_boundary[3]
 idx_end = n_particle
@@ -364,14 +365,12 @@ u_obs = -omega * (node_y - ycenter)
 v_obs = omega * (node_x - xcenter)
 convectionx_solid_ = 0
 convectionz_solid_ = 0
-u_obs = -omega * (node_y - ycenter)
-v_obs = omega * (node_x - xcenter)
 #%%
 CL = []
 CD = []
 ts = []
 #%%
-dt = 5e-3
+dt = 5e-2
 while T < 1e1:
     #dt = np.min(alphaC * diameter / np.sqrt(u**2+v**2))
     n_thread = threading.active_count()
@@ -407,13 +406,13 @@ while T < 1e1:
     RHS_u = u[n_bound:] / dt + Ddrag_2d[n_bound:] @ u_obs
     RHS_u = np.concatenate((rhs_u, RHS_u))
     
-    u_pred = linalg.spsolve(LHS_2d, RHS_u)
+    u_pred = spsolve(LHS_2d, RHS_u)
     # solve for v
     LHS_2d = sparse.vstack((v_bound_2d, in_LHS_2d))
     RHS_v = v[n_bound:] / dt + Ddrag_2d[n_bound:] @ v_obs
     RHS_v = np.concatenate((rhs_v, RHS_v))
     
-    v_pred = linalg.spsolve(LHS_2d, RHS_v)
+    v_pred = spsolve(LHS_2d, RHS_v)
     
     # 2. Pressure correction
     # Calculate value for phi
@@ -429,12 +428,13 @@ while T < 1e1:
     idx_begin = idx_end
     idx_end = n_particle
     
+    """
     RHS_phi = 1 / dt * (dx_2d[n_bound:].dot(u_pred) + dy_2d[n_bound:].dot(v_pred)) \
-                + dx_2d[n_bound:].dot(Ddrag_2d.dot(u_pred)) + dy_2d[n_bound:].dot(Ddrag_2d.dot(v_pred))
-     
+                + Ddrag_2d[n_bound:].dot(dx_2d.dot(u_pred)) + Ddrag_2d[n_bound:].dot(dy_2d.dot(v_pred))
     """
+    
     RHS_phi = 1 / dt * (dx_2d[n_bound:].dot(u_pred) + dy_2d[n_bound:].dot(v_pred))
-    """
+    
     RHS_p = np.concatenate((rhs_p, RHS_phi))
     
     phi = poisson_2d(RHS_p)
@@ -445,6 +445,7 @@ while T < 1e1:
     
     # Velocity correction
     # Create LHS matrix
+    """
     in_LHS_2d = I_2d[n_bound:] / dt + Ddrag_2d[n_bound:]
     
     # solve for u
@@ -452,31 +453,36 @@ while T < 1e1:
     RHS_u = u_pred[n_bound:] / dt - (dx_2d[n_bound:].dot(phi) - Ddrag_2d[n_bound:].dot(u_pred))
     RHS_u = np.concatenate((rhs_u, RHS_u))
     
-    u_corr = linalg.spsolve(LHS_2d, RHS_u)
+    u_corr = spsolve(LHS_2d, RHS_u)
     
     # solve for v
     LHS_2d = sparse.vstack((v_bound_2d, in_LHS_2d))
     RHS_v = v_pred[n_bound:] / dt - (dy_2d[n_bound:].dot(phi) - Ddrag_2d[n_bound:].dot(v_pred))
     RHS_v = np.concatenate((rhs_v, RHS_v))
     
-    v_corr = linalg.spsolve(LHS_2d, RHS_v)
+    v_corr = spsolve(LHS_2d, RHS_v)
     
     u, v = u_corr, v_corr
-    
     """
+    
     u[n_bound:] = u_pred[n_bound:] - dt * dx_2d[n_bound:].dot(phi)
     v[n_bound:] = v_pred[n_bound:] - dt * dy_2d[n_bound:].dot(phi)
-    """
+    
     p1 = p
     
     print(' max vres = ', np.max(np.sqrt(u**2+v**2)))
     # Force Calculation
-    u_solid = (u[in_solid_] - u_obs[in_solid_]) / eta
-    v_solid = (v[in_solid_] - v_obs[in_solid_]) / eta
+    u_solid = (u_pred[in_solid_] - u_obs[in_solid_]) / eta
+    v_solid = (v_pred[in_solid_] - v_obs[in_solid_]) / eta
     h_solid = diameter[in_solid_]
+    if omega < 0:
+        convectionx_solid_ = u_pred[in_solid_] * (dx_upwind[in_solid_].dot(u_pred)) \
+                            + v_pred[in_solid_] * (dy_upwind[in_solid_].dot(u_pred))
+        convectiony_solid_ = u_pred[in_solid_] * (dx_upwind[in_solid_].dot(v_pred)) \
+                            + v_pred[in_solid_] * (dy_upwind[in_solid_].dot(v_pred))
     
-    c_x = np.sum((u_solid) *(h_solid**2)) / (0.5 * (width))
-    c_y = np.sum((v_solid) *(h_solid**2)) / (0.5 * (width))
+    c_x = np.sum((u_solid - convectionx_solid_) *(h_solid**2)) / (0.5 * (width))
+    c_y = np.sum((v_solid - convectiony_solid_) *(h_solid**2)) / (0.5 * (width))
     CD.append(c_x)
     CL.append(c_y)
     ts.append(T)
@@ -484,7 +490,18 @@ while T < 1e1:
     print(' CL = ', c_y)
     print(' dt = ', dt)
     
+    visualize(node_x, node_y, p, diameter, '$P\ (Pa)$')
+    visualize(node_x, node_y, u, diameter, '$v_x\  (m/s)$')
+    visualize(node_x, node_y, v, diameter, '$v_{y}\ (m/s)$')
+    visualize(node_x, node_y, np.sqrt(u**2+v**2), diameter, '$v_{res}\ (m/s)$')
+    
     T += dt    
+
+#%%
+visualize(node_x, node_y, p, diameter, '$P\ (Pa)$')
+visualize(node_x, node_y, u, diameter, '$v_x\  (m/s)$')
+visualize(node_x, node_y, v, diameter, '$v_{y}\ (m/s)$')
+visualize(node_x, node_y, np.sqrt(u**2+v**2), diameter, '$v_{res}\ (m/s)$')
 #%%
 CD = np.array(CD)
 CL = np.array(CL)
@@ -497,6 +514,18 @@ np.save('p.npy', p)
 np.save('CL.npy', CL)
 np.save('CD.npy', CD)
 np.save('ts.npy', ts)
+#%%
+
+x = np.load('x.npy')
+y = np.load('y.npy')
+
+u = np.load('u.npy')
+v = np.load('v.npy')
+p = np.load('p.npy')
+
+CD = np.load('CD.npy')
+CL = np.load('CL.npy')
+ts = np.load('ts.npy')
 #%%
 import csv
 vres = np.sqrt(u**2+v**2)
